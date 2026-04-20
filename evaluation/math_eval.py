@@ -136,16 +136,47 @@ def setup(args):
 
     # add "avg" result to data_list and results
     data_list.append("avg")
-    results.append(
-        {
-            "acc": sum([result["acc"] for result in results]) / len(results),
-        }
-    )
+    avg_result = {
+        "acc": sum([result["acc"] for result in results]) / len(results),
+    }
+    # compute average pass@k across datasets
+    if "pass@k" in results[0]:
+        avg_pass_k = {}
+        all_k_values = results[0]["pass@k"].keys()
+        for k in all_k_values:
+            avg_pass_k[k] = sum([r["pass@k"][k] for r in results]) / len(results)
+        avg_result["pass@k"] = avg_pass_k
+    results.append(avg_result)
 
     # print all results
     pad = max([len(data_name) for data_name in data_list])
+    print("\n" + "=" * 80)
+    print("EVALUATION RESULTS SUMMARY")
+    print("=" * 80)
+
+    # Print header
     print("\t".join(data_name.ljust(pad, " ") for data_name in data_list))
-    print("\t".join([f"{result['acc']:.1f}".ljust(pad, " ") for result in results]))
+    # Print accuracy row
+    print("acc:\t" + "\t".join([f"{result['acc']:.1f}".ljust(pad, " ") for result in results]))
+    # Print pass@k rows
+    if "pass@k" in results[0]:
+        for k in sorted(results[0]["pass@k"].keys()):
+            row = []
+            for result in results:
+                val = result.get("pass@k", {}).get(k, 0.0)
+                row.append(f"{val:.1f}".ljust(pad, " "))
+            print(f"pass@{k}:\t" + "\t".join(row))
+    print("=" * 80)
+
+    # Save summary to file
+    summary_file = os.path.join(args.output_dir, "pass_k_summary.json")
+    summary_data = {f"pass@{k}": v for k, v in avg_result.get("pass@k", {}).items()}
+    # Also include accuracy if it's the only metric or as a fallback
+    summary_data["acc"] = avg_result["acc"]
+    
+    with open(summary_file, "w") as f:
+        json.dump(summary_data, f, indent=4)
+    print(f"Summary saved to: {summary_file}")
 
 
 def is_multi_choice(answer):
